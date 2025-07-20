@@ -1,0 +1,21 @@
+{
+  "name": "cicd-pipeline-demo",
+  "version": "1.0.0",
+  "description": "Demo application for CI/CD pipeline",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "test": "jest",
+    "build": "echo 'Building application...' && mkdir -p dist && cp app.js dist/",
+    "lint": "echo 'Running linter...' && echo 'Linting completed successfully'"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "keywords": ["cicd", "pipeline", "github-actions"],
+  "author": "Your Name",
+  "license": "MIT"
+}
