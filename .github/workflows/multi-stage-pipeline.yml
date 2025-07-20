@@ -1,0 +1,125 @@
+# Create basic workflow content
+echo 'name: Multi-Stage CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "18"
+
+jobs:
+  source:
+    name: 📦 Source Stage
+    runs-on: ubuntu-latest
+    outputs:
+      commit-sha: ${{ steps.commit.outputs.sha }}
+      branch-name: ${{ steps.branch.outputs.name }}
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+    - name: Get Commit Information
+      id: commit
+      run: |
+        SHORT_SHA=$(git rev-parse --short HEAD)
+        echo "sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+        echo "📋 Commit SHA: ${SHORT_SHA}"
+    - name: Get Branch Information
+      id: branch
+      run: |
+        BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+        echo "name=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+        echo "🌿 Branch: ${BRANCH_NAME}"
+
+  build:
+    name: 🏗️ Build Stage
+    runs-on: ubuntu-latest
+    needs: source
+    outputs:
+      build-version: ${{ steps.version.outputs.version }}
+      artifact-name: ${{ steps.artifact.outputs.name }}
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "18"
+        cache: "npm"
+    - name: Install Dependencies
+      run: npm ci
+    - name: Generate Build Version
+      id: version
+      run: |
+        VERSION="1.0.${{ github.run_number }}"
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "🏷️ Build Version: ${VERSION}"
+    - name: Build Application
+      run: npm run build
+    - name: Create Build Metadata
+      run: |
+        mkdir -p dist/meta
+        echo "{\"version\":\"${{ steps.version.outputs.version }}\",\"commit\":\"${{ needs.source.outputs.commit-sha }}\",\"buildTime\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > dist/meta/build-info.json
+        cat dist/meta/build-info.json
+    - name: Set Artifact Name
+      id: artifact
+      run: |
+        ARTIFACT_NAME="app-build-${{ github.run_number }}"
+        echo "name=${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
+        echo "📦 Artifact name: ${ARTIFACT_NAME}"
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.artifact.outputs.name }}
+        path: dist/
+        retention-days: 30
+
+  test:
+    name: 🧪 Test Stage
+    runs-on: ubuntu-latest
+    needs: [source, build]
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "18"
+        cache: "npm"
+    - name: Install Dependencies
+      run: npm ci
+    - name: Run Tests
+      run: npm test
+
+  deploy:
+    name: 🚀 Deploy Stage
+    runs-on: ubuntu-latest
+    needs: [source, build, test]
+    if: github.ref == "refs/heads/main"
+    steps:
+    - name: Download Build Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ needs.build.outputs.artifact-name }}
+        path: ./deployment/
+    - name: Display Build Information
+      run: |
+        echo "=== RELEASE INFORMATION ==="
+        echo "Version: ${{ needs.build.outputs.build-version }}"
+        echo "Commit: ${{ needs.source.outputs.commit-sha }}"
+        echo "Branch: ${{ needs.source.outputs.branch-name }}"
+        echo "============================="
+        if [ -f "./deployment/meta/build-info.json" ]; then
+          echo "✅ Build metadata found"
+          cat "./deployment/meta/build-info.json"
+        else
+          echo "❌ Build metadata missing"
+          find ./deployment -name "*.json" || echo "No JSON files found"
+        fi
+    - name: Deploy Application
+      run: |
+        echo "🚀 Deploying application..."
+        echo "✅ Deployment completed successfully!"' > .github/workflows/multi-stage-pipeline.yml
