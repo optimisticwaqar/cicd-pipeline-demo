@@ -1,5 +1,4 @@
 # Create basic workflow content
-echo 'name: Multi-Stage CI/CD Pipeline
 
 on:
   push:
